@@ -44,14 +44,31 @@ Set-Location $RunnerPath
 Write-Host "✓ Папка создана: $RunnerPath" -ForegroundColor Green
 
 # Определение версии runner
-$runnerVersion = "2.311.0"
+$runnerVersion = "2.329.0"
 $runnerUrl = "https://github.com/actions/runner/releases/download/v$runnerVersion/actions-runner-win-x64-$runnerVersion.zip"
 $runnerZip = "actions-runner-win-x64-$runnerVersion.zip"
+$expectedHash = "f60be5ddf373c52fd735388c3478536afd12bfd36d1d0777c6b855b758e70f25"  # SHA256 hash для проверки
 
 Write-Host "Скачивание runner v$runnerVersion..." -ForegroundColor Cyan
 try {
     Invoke-WebRequest -Uri $runnerUrl -OutFile $runnerZip -UseBasicParsing
     Write-Host "✓ Runner скачан" -ForegroundColor Green
+    
+    # Проверка хеша (опционально, но рекомендуется)
+    Write-Host "Проверка целостности файла..." -ForegroundColor Cyan
+    $actualHash = (Get-FileHash -Path $runnerZip -Algorithm SHA256).Hash.ToUpper()
+    if ($actualHash -ne $expectedHash.ToUpper()) {
+        Write-Host "⚠ Предупреждение: хеш файла не совпадает с ожидаемым!" -ForegroundColor Yellow
+        Write-Host "  Ожидаемый: $expectedHash" -ForegroundColor Yellow
+        Write-Host "  Полученный: $actualHash" -ForegroundColor Yellow
+        $response = Read-Host "Продолжить установку? (y/n)"
+        if ($response -ne "y" -and $response -ne "Y") {
+            Remove-Item $runnerZip
+            exit 1
+        }
+    } else {
+        Write-Host "✓ Целостность файла подтверждена" -ForegroundColor Green
+    }
 } catch {
     Write-Host "✗ Ошибка при скачивании runner: $_" -ForegroundColor Red
     exit 1

@@ -36,11 +36,14 @@ mkdir C:\actions-runner
 cd C:\actions-runner
 
 # Скачайте последнюю версию runner
-Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v2.311.0/actions-runner-win-x64-2.311.0.zip" -OutFile "actions-runner-win-x64-2.311.0.zip"
+Invoke-WebRequest -Uri "https://github.com/actions/runner/releases/download/v2.329.0/actions-runner-win-x64-2.329.0.zip" -OutFile "actions-runner-win-x64-2.329.0.zip"
+
+# Опционально: проверка целостности
+if((Get-FileHash -Path actions-runner-win-x64-2.329.0.zip -Algorithm SHA256).Hash.ToUpper() -ne 'f60be5ddf373c52fd735388c3478536afd12bfd36d1d0777c6b855b758e70f25'.ToUpper()) { throw 'Computed checksum did not match' }
 
 # Распакуйте
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::ExtractToDirectory("$PWD\actions-runner-win-x64-2.311.0.zip", "$PWD")
+[System.IO.Compression.ZipFile]::ExtractToDirectory("$PWD\actions-runner-win-x64-2.329.0.zip", "$PWD")
 
 # Запустите конфигурацию (используйте токен из шага 1)
 .\config.cmd --url https://github.com/Drilspb4202/rdp --token YOUR_TOKEN_HERE
