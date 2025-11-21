@@ -1,0 +1,27 @@
+# Python
+Lib/
+Scripts/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# PowerShell
+*.ps1.bak
+
+# Temporary files
+*.tmp
+*.log
+*.temp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
