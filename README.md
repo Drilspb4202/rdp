@@ -2,6 +2,15 @@
 
 Этот репозиторий содержит GitHub Actions workflow для создания временного RDP-доступа к Windows runner через Tailscale VPN.
 
+## ⚠️ Важно: Проблема с биллингом GitHub Actions
+
+**GitHub Actions для Windows runners (`windows-latest`) требует платный план или доступные минуты.**
+
+Если вы видите ошибку: *"The job was not started because your account is locked due to a billing issue"*, у вас есть два варианта:
+
+1. **Исправить биллинг GitHub** - перейдите в Settings → Billing и добавьте способ оплаты
+2. **Использовать Self-Hosted Runner** - используйте свой собственный Windows сервер (см. [SELF_HOSTED_SETUP.md](SELF_HOSTED_SETUP.md))
+
 ## 🚀 Быстрый старт
 
 ### 1. Добавьте Tailscale ключ в GitHub Secrets
@@ -26,6 +35,7 @@ gh secret set TAILSCALE_AUTH_KEY --body "tskey-auth-kXUz5wtMAP11CNTRL-gg4nV2q7ay
 
 ### 2. Запустите workflow
 
+**Вариант A: GitHub-hosted runner (требует платный план)**
 1. Перейдите в раздел **Actions** вашего репозитория
 2. Выберите workflow **RDP**
 3. Нажмите **Run workflow**
@@ -34,6 +44,10 @@ gh secret set TAILSCALE_AUTH_KEY --body "tskey-auth-kXUz5wtMAP11CNTRL-gg4nV2q7ay
    - **Address**: Tailscale IP адрес
    - **Username**: RDP
    - **Password**: автоматически сгенерированный пароль
+
+**Вариант B: Self-hosted runner (бесплатно, но требует свой Windows сервер)**
+1. Следуйте инструкциям в [SELF_HOSTED_SETUP.md](SELF_HOSTED_SETUP.md) для настройки self-hosted runner
+2. После настройки используйте workflow **RDP (Self-Hosted)**
 
 ### 3. Подключитесь через RDP
 
@@ -56,7 +70,8 @@ gh secret set TAILSCALE_AUTH_KEY --body "tskey-auth-kXUz5wtMAP11CNTRL-gg4nV2q7ay
 - Runner будет активен до **60 минут** (timeout) или до ручной остановки
 - Пароль генерируется случайно при каждом запуске
 - Убедитесь, что ваш Tailscale ключ действителен и не истёк
-- Runner использует `windows-latest`, что может потребовать GitHub Actions minutes
+- **GitHub-hosted runner** (`windows-latest`) требует платный план GitHub Actions
+- **Self-hosted runner** работает бесплатно, но требует свой Windows сервер
 
 ## 🔒 Безопасность
 
