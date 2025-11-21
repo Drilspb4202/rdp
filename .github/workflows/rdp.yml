@@ -1,0 +1,163 @@
+name: RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Setup Remote Desktop
+        shell: pwsh
+        run: |
+          Write-Host "=== Setting up Remote Desktop ===" -ForegroundColor Green
+          
+          # Enable Remote Desktop
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          Write-Host "✓ Remote Desktop enabled" -ForegroundColor Green
+      
+      - name: Create RDP User
+        shell: pwsh
+        run: |
+          Write-Host "=== Creating RDP User ===" -ForegroundColor Green
+          
+          $username = "RDP"
+          $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 16 | ForEach-Object {[char]$_})
+          
+          # Create user if doesn't exist
+          $user = Get-LocalUser -Name $username -ErrorAction SilentlyContinue
+          if (-not $user) {
+              New-LocalUser -Name $username -Password (ConvertTo-SecureString -String $password -AsPlainText -Force) -Description "RDP Access User" -PasswordNeverExpires
+              Add-LocalGroupMember -Group "Administrators" -Member $username
+              Write-Host "✓ User created" -ForegroundColor Green
+          } else {
+              # Update password
+              $user | Set-LocalUser -Password (ConvertTo-SecureString -String $password -AsPlainText -Force)
+              Write-Host "✓ User password updated" -ForegroundColor Green
+          }
+          
+          # Store password in environment variable for later use
+          Write-Host "::add-mask::$password" 
+          $env:RDP_PASSWORD = $password
+          Write-Host "✓ Password generated and stored" -ForegroundColor Green
+      
+      - name: Install Tailscale
+        shell: pwsh
+        run: |
+          Write-Host "=== Installing Tailscale ===" -ForegroundColor Green
+          
+          # Download Tailscale installer
+          $installerPath = "$env:TEMP\tailscale-installer.msi"
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -OutFile $installerPath
+          
+          # Install Tailscale silently
+          Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait
+          
+          # Wait for Tailscale service
+          Start-Sleep -Seconds 5
+          
+          Write-Host "✓ Tailscale installed" -ForegroundColor Green
+      
+      - name: Configure Tailscale
+        shell: pwsh
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          Write-Host "=== Configuring Tailscale ===" -ForegroundColor Green
+          
+          # Start Tailscale service
+          Start-Service Tailscale
+          Start-Sleep -Seconds 3
+          
+          # Authenticate with Tailscale
+          $authKey = $env:TAILSCALE_AUTH_KEY
+          if (-not $authKey) {
+              Write-Host "✗ TAILSCALE_AUTH_KEY secret not found!" -ForegroundColor Red
+              exit 1
+          }
+          
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$authKey --accept-routes
+          
+          # Wait for connection
+          Start-Sleep -Seconds 5
+          
+          # Get Tailscale IP
+          $tailscaleIP = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
+          
+          if (-not $tailscaleIP) {
+              Write-Host "✗ Failed to get Tailscale IP" -ForegroundColor Red
+              exit 1
+          }
+          
+          Write-Host "✓ Tailscale connected" -ForegroundColor Green
+          Write-Host "✓ Tailscale IP: $tailscaleIP" -ForegroundColor Cyan
+          
+          # Store IP in environment variable
+          $env:TAILSCALE_IP = $tailscaleIP
+      
+      - name: Configure Firewall
+        shell: pwsh
+        run: |
+          Write-Host "=== Configuring Firewall ===" -ForegroundColor Green
+          
+          # Allow RDP through firewall
+          New-NetFirewallRule -DisplayName "RDP Tailscale" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+          
+          Write-Host "✓ Firewall configured" -ForegroundColor Green
+      
+      - name: Verify RDP
+        shell: pwsh
+        run: |
+          Write-Host "=== Verifying RDP ===" -ForegroundColor Green
+          
+          # Check if RDP is listening
+          $rdpListening = Get-NetTCPConnection -LocalPort 3389 -ErrorAction SilentlyContinue
+          if ($rdpListening) {
+              Write-Host "✓ RDP is listening on port 3389" -ForegroundColor Green
+          } else {
+              Write-Host "⚠ RDP port not yet listening, but should be available soon" -ForegroundColor Yellow
+          }
+      
+      - name: Display Connection Info
+        shell: pwsh
+        run: |
+          Write-Host ""
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "=== RDP ACCESS ===" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host "Address: $env:TAILSCALE_IP" -ForegroundColor White
+          Write-Host "Username: RDP" -ForegroundColor White
+          Write-Host "Password: $env:RDP_PASSWORD" -ForegroundColor White
+          Write-Host "========================================" -ForegroundColor Cyan
+          Write-Host ""
+          Write-Host "Workflow will remain active for up to 60 minutes." -ForegroundColor Yellow
+          Write-Host "Stop the workflow manually when done." -ForegroundColor Yellow
+          Write-Host ""
+      
+      - name: Maintain Connection
+        shell: pwsh
+        run: |
+          Write-Host "=== Maintaining Connection ===" -ForegroundColor Green
+          Write-Host "Runner will stay active. Press 'Cancel workflow' to stop." -ForegroundColor Yellow
+          
+          # Keep runner alive
+          $startTime = Get-Date
+          $timeout = 60 * 60  # 60 minutes in seconds
+          
+          while ($true) {
+              $elapsed = (Get-Date) - $startTime
+              if ($elapsed.TotalSeconds -gt $timeout) {
+                  Write-Host "Timeout reached (60 minutes)" -ForegroundColor Yellow
+                  break
+              }
+              
+              # Display status every minute
+              $minutes = [math]::Floor($elapsed.TotalMinutes)
+              Write-Host "[$minutes min] Runner active. Tailscale IP: $env:TAILSCALE_IP" -ForegroundColor Cyan
+              
+              Start-Sleep -Seconds 60
+          }
